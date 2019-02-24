@@ -43,6 +43,16 @@ OTHER DEALINGS IN THE SOFTWARE.
 #error "above your includes like so : #define ESP8266 "
 #endif
 
+#ifndef NODEBUG_WEBSOCKETS
+#define DEBUG_WEBSOCKETS(...) Serial.printf( __VA_ARGS__ )
+#endif
+
+
+#ifndef DEBUG_WEBSOCKETS
+#define DEBUG_WEBSOCKETS(...)
+#define NODEBUG_WEBSOCKETS
+#endif
+
 // Length of static data buffers
 #define DATA_BUFFER_LEN 120
 #define SID_LEN 24
@@ -118,6 +128,14 @@ private:
 	String constructMESSAGE(socketIOmessageType_t type, const char* event, const char* payload = NULL, const char * id = NULL);
 	void triggerEvent(const socketIOPacket_t &packet);
 	std::map<String, callback_fn> _events;
+
+	/**
+	 * Parses the payload into a socketIOPacket_t.
+	 * The payload has the following format: ID[EVENT,DATA]
+	 * socketIOPacket_t contains the id, event and data.
+	 * @param payload std::string
+	 */
+	socketIOPacket_t parse(const std::string &payload);
 };
 
 #endif

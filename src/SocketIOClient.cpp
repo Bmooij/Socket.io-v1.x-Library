@@ -64,49 +64,60 @@ void SocketIOClient::terminateCommand(void) {
 }
 
 void SocketIOClient::parser(int index) {
-    String rcvdmsg = "";
+    String payload = "";
     int sizemsg = databuffer[index + 1];  // 0-125 byte, index ok        Fix provide by Galilei11. Thanks
     if (databuffer[index + 1] > 125) {
         sizemsg = databuffer[index + 2];  // 126-255 byte
         index += 1;                       // index correction to start
     }
-    Serial.print("Message size = ");  //Can be used for debugging
-    Serial.println(sizemsg);          //Can be used for debugging
     for (int i = index + 2; i < index + sizemsg + 2; i++)
-        rcvdmsg += (char)databuffer[i];
-    Serial.print("Received message = ");  //Can be used for debugging
-    Serial.println(rcvdmsg);              //Can be used for debugging
-    switch (rcvdmsg[0]) {
-        case '2':
-            Serial.println("Ping received - Sending Pong");
+        payload += (char)databuffer[i];
+
+	size_t length = payload.length();
+	engineIOmessageType_t eType = (engineIOmessageType_t) payload[0];
+    switch (eType) {
+        case eIOtype_PING:
+            DEBUG_WEBSOCKETS("[socketIO] Ping received - Sending Pong\n");
             heartbeat(1);
             break;
 
-        case '3':
-            Serial.println("Pong received - All good");
+        case eIOtype_PONG:
+            DEBUG_WEBSOCKETS("[socketIO] Pong received - All good\n");
             break;
 
-        case '4':
-            switch (rcvdmsg[1]) {
-                case '0':
-                    Serial.println("Upgrade to WebSocket confirmed");
-                    break;
-                case '2':
-					socketIOPacket_t packet;
-					packet.id = rcvdmsg.substring(4, rcvdmsg.indexOf("\","));
-					packet.event = rcvdmsg.substring(4, rcvdmsg.indexOf("\","));
-					packet.data = rcvdmsg.substring(rcvdmsg.indexOf("\":") + 3, rcvdmsg.indexOf("\"}"));
+        case eIOtype_MESSAGE:
+			if(length < 2) {
+				break;
+			}
+			socketIOmessageType_t ioType = (socketIOmessageType_t) payload[1];
+			uint8_t * data = (uint8_t *)&payload[2];
+			size_t lData = length - 2;
+			socketIOPacket_t packet;
+			switch(ioType) {
+				case sIOtype_EVENT:
+					DEBUG_WEBSOCKETS("[socketIO] get event (%d): %s\n", lData, data);
+					packet = parse(std::string((char *)data));
 					triggerEvent(packet);
-
-                    // RID = rcvdmsg.substring(4, rcvdmsg.indexOf("\","));
-                    // Rname = rcvdmsg.substring(rcvdmsg.indexOf("\",") + 4, rcvdmsg.indexOf("\":"));
-                    // Rcontent = rcvdmsg.substring(rcvdmsg.indexOf("\":") + 3, rcvdmsg.indexOf("\"}"));
-                    //Serial.println("RID = " + RID);
-                    //Serial.println("Rname = " + Rname);
-                    //Serial.println("Rcontent = " + Rcontent);
-                    // Serial.println(rcvdmsg);
-                    break;
-            }
+					break;
+				case sIOtype_CONNECT:
+					DEBUG_WEBSOCKETS("[socketIO] connected\n");
+					packet.event = "connect";
+					triggerEvent(packet);
+					break;
+				case sIOtype_DISCONNECT:
+					DEBUG_WEBSOCKETS("[socketIO] disconnected\n");
+					packet.event = "disconnect";
+					triggerEvent(packet);
+					break;
+				case sIOtype_ACK:
+				case sIOtype_ERROR:
+				case sIOtype_BINARY_EVENT:
+				case sIOtype_BINARY_ACK:
+				default:
+					DEBUG_WEBSOCKETS("[socketIO] Socket.IO Message Type %c (%02X) is not implemented\n", ioType, ioType);
+					DEBUG_WEBSOCKETS("[socketIO] get text: %s\n", payload);
+					break;
+			}
     }
 }
 
@@ -358,7 +369,7 @@ String SocketIOClient::constructMESSAGE(socketIOmessageType_t type, const char *
 }
 
 void SocketIOClient::sendMESSAGE(const String &message) {
-	Serial.println(message);
+	DEBUG_WEBSOCKETS("[socketIO] send message (%d): %s\n", message.length(), message.c_str());
     int header[10];
     header[0] = 0x81;
     int msglength = message.length();
@@ -407,4 +418,70 @@ void SocketIOClient::sendMESSAGE(const String &message) {
 
     client.print(mask);
     client.print(masked);
+}
+
+const unsigned int eParseTypeID = 0;
+const unsigned int eParseTypeEVENT = 1;
+const unsigned int eParseTypeDATA = 2;
+
+socketIOPacket_t SocketIOClient::parse(const std::string &payloadStr) {
+    socketIOPacket_t result;
+    unsigned int currentParseType = eParseTypeID;
+    bool escChar = false;
+    bool inString = false;
+    bool inJson = false;
+    bool inArray = false;
+    for (auto c : payloadStr) {
+        if (!escChar && c == '"') {
+            if (inString)
+                inString = false;
+            else
+                inString = true;
+            if (!inJson && !inArray)
+                continue;
+        }
+        if (c == '\\') {
+            if (escChar)
+                escChar = false;
+            else
+                escChar = true;
+        } else if (escChar)
+            escChar = false;
+
+        if (!inJson && !inString && c == '{')
+            inJson = true;
+        if (inJson && !inString && c == '}')
+            inJson = false;
+
+        if (currentParseType > eParseTypeID)
+            if (!inArray && !inString && c == '[')
+                inArray = true;
+
+        if (!inArray && !inString && !inJson && !escChar) {
+            if (c == '[' && currentParseType == eParseTypeID) {
+                currentParseType++;
+                continue;
+            }
+            if (c == ',' && currentParseType == eParseTypeEVENT) {
+                currentParseType++;
+                continue;
+            }
+            if (c == ']') {
+                break;
+            }
+        }
+
+        if (currentParseType > eParseTypeID)
+            if (inArray && !inString && c == ']')
+                inArray = false;
+
+        if (currentParseType == eParseTypeID) {
+            result.id += c;
+        } else if (currentParseType == eParseTypeEVENT) {
+            result.event += c;
+        } else if (currentParseType == eParseTypeDATA) {
+            result.data += c;
+        }
+    }
+    return result;
 }
