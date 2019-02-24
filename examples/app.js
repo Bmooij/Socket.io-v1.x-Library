@@ -29,10 +29,14 @@ io.on('connection', function (socket) {
   socket.on('connection', function (data) {
     console.log(data);
   });
-  socket.on('atime', function (data) {
+  socket.on('atime', function (data, cb) {
     socket.emit('rtime', { time: new Date().toJSON() }, function (_, data) {
       console.log(data);
     });
+    if (cb) {
+      console.log("sending callback");
+      cb({ time: new Date().toJSON() });
+    }
     console.log(data);
   });
   socket.on('JSON', function (data) {

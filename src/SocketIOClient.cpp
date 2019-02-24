@@ -110,6 +110,10 @@ void SocketIOClient::parser(int index) {
 					triggerEvent(packet);
 					break;
 				case sIOtype_ACK:
+					DEBUG_WEBSOCKETS("[socketIO] get ack (%d): %s\n", lData, data);
+					packet = parse(std::string((char *)data));
+					triggerAck(packet);
+					break;
 				case sIOtype_ERROR:
 				case sIOtype_BINARY_EVENT:
 				case sIOtype_BINARY_ACK:
@@ -139,7 +143,7 @@ bool SocketIOClient::monitor() {
     while (client.available()) {
         readLine();
         tmp = databuffer;
-        Serial.println(databuffer);
+        // Serial.println(databuffer);
         dataptr = databuffer;
         index = tmp.indexOf((char)129);  //129 DEC = 0x81 HEX = sent for proper communication
         index2 = tmp.indexOf((char)129, index + 1);
@@ -199,9 +203,9 @@ bool SocketIOClient::readHandshake() {
     for (int i = 0; i < count; i++) {
         sid[i] = databuffer[i + sidindex + 6];
     }
-    Serial.println(" ");
-    Serial.print(F("Connected. SID="));
-    Serial.println(sid);  // sid:transport:timeout
+    // Serial.println(" ");
+    // Serial.print(F("Connected. SID="));
+    // Serial.println(sid);  // sid:transport:timeout
 
     while (client.available()) readLine();
     client.stop();
@@ -209,10 +213,10 @@ bool SocketIOClient::readHandshake() {
 
     // reconnect on websocket connection
     if (!client.connect(hostname, port)) {
-        Serial.print(F("Websocket failed."));
+        // Serial.print(F("Websocket failed."));
         return false;
     }
-    Serial.println(F("Connecting via Websocket"));
+    // Serial.println(F("Connecting via Websocket"));
 
     client.print(F("GET /socket.io/1/websocket/?transport=websocket&b64=true&sid="));
     client.print(sid);
@@ -282,12 +286,12 @@ void SocketIOClient::readLine() {
     dataptr = databuffer;
     while (client.available() && (dataptr < &databuffer[DATA_BUFFER_LEN - 2])) {
         char c = client.read();
-        Serial.print(c);  //Can be used for debugging
-        if (c == 0)
-            Serial.print("");
-        else if (c == 255)
-            Serial.println("");
-        else if (c == '\r') {
+        // Serial.print(c);  //Can be used for debugging
+        if (c == 0) {
+            // Serial.print("");
+        } else if (c == 255) {
+            // Serial.println("");
+        } else if (c == '\r') {
             ;
         } else if (c == '\n')
             break;
@@ -297,9 +301,16 @@ void SocketIOClient::readLine() {
     *dataptr = 0;
 }
 
-void SocketIOClient::emit(const char *event, const char *content) {
-    String message = constructMESSAGE(sIOtype_EVENT, event, content);
-    sendMESSAGE(message);
+void SocketIOClient::emit(const char *event, const char *content, ackCallback_fn cb) {
+	if (cb == NULL) {
+		String message = constructMESSAGE(sIOtype_EVENT, event, content);	
+		sendMESSAGE(message);
+	} else {
+		String ackId(_ackId++);
+		String message = constructMESSAGE(sIOtype_EVENT, event, content, ackId.c_str());
+		_acks[ackId.c_str()] = cb;
+		sendMESSAGE(message);
+	}
 }
 
 void SocketIOClient::send(const char *content) {
@@ -345,6 +356,14 @@ void SocketIOClient::triggerEvent(const socketIOPacket_t &packet) {
             sendMESSAGE(msg);
         };
         e->second(packet.data, cb);
+    }
+}
+
+void SocketIOClient::triggerAck(const socketIOPacket_t &packet) {
+    auto e = _acks.find(packet.id.c_str());
+    if (e != _acks.end()) {
+        e->second(packet.event.c_str()); // <- should be data
+		_acks.erase(e);
     }
 }
 

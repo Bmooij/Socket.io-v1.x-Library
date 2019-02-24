@@ -94,7 +94,7 @@ public:
 	void disconnect();
 	bool reconnect(char hostname[], int port = 80);
 	bool monitor();
-	void emit(const char *event, const char *content);
+	void emit(const char *event, const char *content, ackCallback_fn = NULL);
 	void send(const char *content);
 	void on(const char* event, callback_fn);
 	void heartbeat(int select);
@@ -127,7 +127,10 @@ private:
 	void sendMESSAGE(const String &message);
 	String constructMESSAGE(socketIOmessageType_t type, const char* event, const char* payload = NULL, const char * id = NULL);
 	void triggerEvent(const socketIOPacket_t &packet);
+	void triggerAck(const socketIOPacket_t &packet);
 	std::map<String, callback_fn> _events;
+	std::map<String, ackCallback_fn> _acks;
+	size_t _ackId = 1;
 
 	/**
 	 * Parses the payload into a socketIOPacket_t.
