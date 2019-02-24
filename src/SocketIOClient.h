@@ -22,7 +22,11 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 */
-#include "Arduino.h"
+#ifndef _SOCKET_IO_CLIENT_H
+#define _SOCKET_IO_CLIENT_H
+
+#include <Arduino.h>
+#include <map>
 
 #if defined(W5100)
 #include <Ethernet.h>
@@ -43,6 +47,35 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define DATA_BUFFER_LEN 120
 #define SID_LEN 24
 
+struct socketIOPacket_t {
+    String id = "";
+    String event = "";
+    String data = "";
+};
+
+typedef enum : char {
+    eIOtype_OPEN = '0', ///< Sent from the server when a new transport is opened (recheck)
+    eIOtype_CLOSE = '1', ///< Request the close of this transport but does not shutdown the connection itself.
+    eIOtype_PING = '2', ///< Sent by the client. Server should answer with a pong packet containing the same data
+    eIOtype_PONG = '3', ///< Sent by the server to respond to ping packets.
+    eIOtype_MESSAGE = '4', ///< actual message, client and server should call their callbacks with the data
+    eIOtype_UPGRADE = '5', ///< Before engine.io switches a transport, it tests, if server and client can communicate over this transport. If this test succeed, the client sends an upgrade packets which requests the server to flush its cache on the old transport and switch to the new transport.
+    eIOtype_NOOP = '6', ///< A noop packet. Used primarily to force a poll cycle when an incoming websocket connection is received.
+} engineIOmessageType_t;
+
+typedef enum : char {
+    sIOtype_CONNECT = '0',
+    sIOtype_DISCONNECT = '1',
+    sIOtype_EVENT = '2',
+    sIOtype_ACK = '3',
+    sIOtype_ERROR = '4',
+    sIOtype_BINARY_EVENT = '5',
+    sIOtype_BINARY_ACK = '6',
+} socketIOmessageType_t;
+
+typedef std::function<void (const char * payload)> ackCallback_fn;
+typedef std::function<void (const String &payload, ackCallback_fn)> callback_fn;
+
 class SocketIOClient {
 public:
 	bool connect(char hostname[], int port = 80);
@@ -51,16 +84,11 @@ public:
 	void disconnect();
 	bool reconnect(char hostname[], int port = 80);
 	bool monitor();
-	void sendMessage(String message = "");
-	void send(String RID, String Rname, String Rcontent);
-	void sendNSP();
-	void sendJSON(String RID, String JSON);
+	void emit(const char *event, const char *content);
+	void send(const char *content);
+	void on(const char* event, callback_fn);
 	void heartbeat(int select);
 	void clear();
-	void getREST(String path);
-	void postREST(String path, String type, String data);
-	void putREST(String path, String type, String data);
-	void deleteREST(String path);
 private:
 	void parser(int index);
 	void sendHandshake(char hostname[]);
@@ -85,4 +113,11 @@ private:
 	void terminateCommand(void);
 	bool waitForInput(void);
 	void eatHeader(void);
+
+	void sendMESSAGE(const String &message);
+	String constructMESSAGE(socketIOmessageType_t type, const char* event, const char* payload = NULL, const char * id = NULL);
+	void triggerEvent(const socketIOPacket_t &packet);
+	std::map<String, callback_fn> _events;
 };
+
+#endif
