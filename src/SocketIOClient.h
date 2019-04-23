@@ -38,24 +38,21 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include <ESP8266WiFi.h>				//For ESP8266
 #elif defined(ESP32)
 #include <WiFi.h>					//For ESP32
+#include <WiFiClientSecure.h>					//For ESP32
 #elif (!defined(ESP32) && !defined(ESP8266) && !defined(W5100) && !defined(ENC28J60))	//If no interface is defined
 #error "Please specify an interface such as W5100, ENC28J60, ESP8266 or ESP32"
 #error "above your includes like so : #define ESP8266 "
 #endif
 
-#ifndef NODEBUG_WEBSOCKETS
+#ifdef DEBUG_WEBSOCKETS
+#undef DEBUG_WEBSOCKETS
 #define DEBUG_WEBSOCKETS(...) Serial.printf( __VA_ARGS__ )
-#endif
-
-
-#ifndef DEBUG_WEBSOCKETS
+#else
 #define DEBUG_WEBSOCKETS(...)
-#define NODEBUG_WEBSOCKETS
 #endif
 
 // Length of static data buffers
-#define DATA_BUFFER_LEN 120
-#define SID_LEN 24
+#define DATA_BUFFER_LEN 512
 
 struct socketIOPacket_t {
     String id = "";
@@ -88,12 +85,11 @@ typedef std::function<void (const String &payload, ackCallback_fn)> callback_fn;
 
 class SocketIOClient {
 public:
-	bool connect(char hostname[], int port = 80);
-	bool connectHTTP(char hostname[], int port = 80);
+	void begin(const char* host, unsigned int port, const char* root_ca = nullptr);
+	bool connect(const char* host, unsigned int port, const char* root_ca = nullptr);
 	bool connected();
 	void disconnect();
-	bool reconnect(char hostname[], int port = 80);
-	bool monitor();
+	void loop();
 	void emit(const char *event, const char *content, ackCallback_fn = NULL);
 	void send(const char *content);
 	void on(const char* event, callback_fn);
@@ -101,28 +97,30 @@ public:
 	void clear();
 private:
 	void parser(int index);
-	void sendHandshake(char hostname[]);
 #if defined(W5100) || defined(ENC28J60)
 	EthernetClient client;				//For ENC28J60 or W5100
 #endif
 #if defined(ESP8266) || defined(ESP32)
-	WiFiClient client;				//For ESP8266 or ESP32
+	WiFiClientSecure client;				//For ESP8266 or ESP32
 #endif
 
-	bool readHandshake();
+	bool doHandshake();
 	void readLine();
 	char *dataptr;
 	char databuffer[DATA_BUFFER_LEN];
-	char sid[SID_LEN];
 	char key[28];
-	char *hostname;
-	char *nsp;
-	int port;
+	const char *_host;
+	unsigned int _port;
+	unsigned long pingInterval;
+	unsigned long lastPing;
+	bool _secure = false;
+	const char* _root_ca;
 
 	void findColon(char which);
 	void terminateCommand(void);
 	bool waitForInput(void);
 	void eatHeader(void);
+	bool clientConnected(void);
 
 	void sendMESSAGE(const String &message);
 	String constructMESSAGE(socketIOmessageType_t type, const char* event, const char* payload = NULL, const char * id = NULL);
