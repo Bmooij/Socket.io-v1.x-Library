@@ -93,7 +93,6 @@ public:
 	void emit(const char *event, const char *content, ackCallback_fn = NULL);
 	void send(const char *content);
 	void on(const char* event, callback_fn);
-	void heartbeat(int select);
 	void clear();
 private:
 	void parser(int index);
@@ -137,6 +136,10 @@ private:
 	 * @param payload std::string
 	 */
 	socketIOPacket_t parse(const std::string &payload);
+
+	void sendCode(const String& code);
+	void sendPing();
+	void sendPong();
 };
 
 #endif
