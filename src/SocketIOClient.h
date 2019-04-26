@@ -85,8 +85,8 @@ typedef std::function<void (const String &payload, ackCallback_fn)> callback_fn;
 
 class SocketIOClient {
 public:
-	void begin(const char* host, unsigned int port, const char* root_ca = nullptr);
-	bool connect(const char* host, unsigned int port, const char* root_ca = nullptr);
+	void begin(const char* host, unsigned int port, const char* root_ca = NULL);
+	bool connect(const char* host, unsigned int port, const char* root_ca = NULL);
 	bool connected();
 	void disconnect();
 	void loop();
@@ -112,7 +112,6 @@ private:
 	unsigned int _port;
 	unsigned long pingInterval;
 	unsigned long lastPing;
-	bool _secure = false;
 	const char* _root_ca;
 
 	void findColon(char which);

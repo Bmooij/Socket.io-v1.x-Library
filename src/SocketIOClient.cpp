@@ -27,12 +27,11 @@ OTHER DEALINGS IN THE SOFTWARE.
 void SocketIOClient::begin(const char* host, unsigned int port, const char* root_ca) {
     _host = host;
     _port = port;
-    _secure = root_ca == nullptr;
     _root_ca = root_ca;
 }
 
 bool SocketIOClient::connect(const char* host, unsigned int port, const char* root_ca) {
-    begin(host, port);
+    begin(host, port, root_ca);
     return clientConnected();
 }
 
@@ -124,7 +123,7 @@ void SocketIOClient::parser(int index) {
 
 bool SocketIOClient::clientConnected(void) {
     if (!connected()) {
-        if (_secure) {
+        if (_root_ca != NULL) {
             client.setCACert(_root_ca);
         }
         if (!client.connect(_host, _port)) return false;
