@@ -73,12 +73,12 @@ void SocketIOClient::parser(int index) {
 	engineIOmessageType_t eType = (engineIOmessageType_t) payload[0];
     switch (eType) {
         case eIOtype_PING:
-            DEBUG_WEBSOCKETS("[socketIO] Ping received - Sending Pong\n");
+            DEBUG_WEBSOCKETS("Ping received - Sending Pong");
             sendPong();
             break;
 
         case eIOtype_PONG:
-            DEBUG_WEBSOCKETS("[socketIO] Pong received - All good\n");
+            DEBUG_WEBSOCKETS("Pong received - All good");
             break;
 
         case eIOtype_MESSAGE:
@@ -91,22 +91,22 @@ void SocketIOClient::parser(int index) {
 			socketIOPacket_t packet;
 			switch(ioType) {
 				case sIOtype_EVENT:
-					DEBUG_WEBSOCKETS("[socketIO] get event (%d): %s\n", lData, data);
+					DEBUG_WEBSOCKETS("get event (%d): %s", lData, data);
 					packet = parse(std::string((char *)data));
 					triggerEvent(packet);
 					break;
 				case sIOtype_CONNECT:
-					DEBUG_WEBSOCKETS("[socketIO] connected\n");
+					DEBUG_WEBSOCKETS("connected");
 					packet.event = "connect";
 					triggerEvent(packet);
 					break;
 				case sIOtype_DISCONNECT:
-					DEBUG_WEBSOCKETS("[socketIO] disconnected\n");
+					DEBUG_WEBSOCKETS("disconnected");
 					packet.event = "disconnect";
 					triggerEvent(packet);
 					break;
 				case sIOtype_ACK:
-					DEBUG_WEBSOCKETS("[socketIO] get ack (%d): %s\n", lData, data);
+					DEBUG_WEBSOCKETS("get ack (%d): %s", lData, data);
 					packet = parse(std::string((char *)data));
 					triggerAck(packet);
 					break;
@@ -114,8 +114,8 @@ void SocketIOClient::parser(int index) {
 				case sIOtype_BINARY_EVENT:
 				case sIOtype_BINARY_ACK:
 				default:
-					DEBUG_WEBSOCKETS("[socketIO] Socket.IO Message Type %c (%02X) is not implemented\n", ioType, ioType);
-					DEBUG_WEBSOCKETS("[socketIO] get text: %s\n", payload);
+					DEBUG_WEBSOCKETS("Socket.IO Message Type %c (%02X) is not implemented", ioType, ioType);
+					DEBUG_WEBSOCKETS("get text: %s", payload);
 					break;
 			}
     }
@@ -334,8 +334,8 @@ void SocketIOClient::sendPong() {
 
 void SocketIOClient::triggerEvent(const socketIOPacket_t &packet) {
     auto e = _events.find(packet.event.c_str());
-    DEBUG_WEBSOCKETS("[socketIO] Trigger event %s\n", packet.event.c_str());
-    DEBUG_WEBSOCKETS("[socketIO] Event payload %s\n", packet.data.c_str());
+    DEBUG_WEBSOCKETS("Trigger event %s", packet.event.c_str());
+    DEBUG_WEBSOCKETS("Event payload %s", packet.data.c_str());
     if (e != _events.end()) {
         ackCallback_fn cb = [this, packet](const char *cb_payload) {
             const String msg = constructMESSAGE(sIOtype_ACK, packet.event.c_str(), cb_payload, packet.id.c_str());
@@ -374,7 +374,7 @@ String SocketIOClient::constructMESSAGE(socketIOmessageType_t type, const char *
 }
 
 void SocketIOClient::sendMESSAGE(const String &message) {
-	DEBUG_WEBSOCKETS("[socketIO] send message (%d): %s\n", message.length(), message.c_str());
+	DEBUG_WEBSOCKETS("send message (%d): %s", message.length(), message.c_str());
     int msglength = message.length();
     uint8_t messageBuffer[10 + 4 + msglength];
     messageBuffer[0] = 0x81;  // has to be sent for proper communication

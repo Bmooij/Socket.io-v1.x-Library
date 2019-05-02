@@ -46,9 +46,13 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 #ifdef DEBUG_WEBSOCKETS
 #undef DEBUG_WEBSOCKETS
-#define DEBUG_WEBSOCKETS(...) Serial.printf( __VA_ARGS__ )
+#define DEBUG_WEBSOCKETS(format, ...) Serial.printf("[socketIO] " format "\r\n", ##__VA_ARGS__ )
+#else
+#if defined(ESP32) && ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_DEBUG
+#define DEBUG_WEBSOCKETS(...) log_d(__VA_ARGS__)
 #else
 #define DEBUG_WEBSOCKETS(...)
+#endif
 #endif
 
 // Length of static data buffers
